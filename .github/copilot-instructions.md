@@ -1,0 +1,1 @@
+When documenting a function include only a brief, one line description of the funtion. Do not describe what the function is doing.
