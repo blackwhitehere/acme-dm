@@ -1,8 +1,11 @@
+import logging
 import os
 from typing import Callable, Optional, Union
 
 import polars as pl
 from acme_dw import DW, DatasetMetadata
+
+logger = logging.getLogger(__name__)
 
 
 def get_dw():
@@ -60,7 +63,13 @@ def add_new_metrics(
     # load existing metrics from dw
     dw = get_dw()
     if isinstance(metrics_metadata, DatasetMetadata):
-        existing_metrics = dw.read_df(metrics_metadata)
+        try:
+            existing_metrics = dw.read_df(metrics_metadata)
+        except FileNotFoundError:
+            logger.warning(
+                "Existing metrics not found. Assuming this is the first run."
+            )
+            existing_metrics = pl.DataFrame()
     else:
         existing_metrics = pl.DataFrame()
 
@@ -70,7 +79,6 @@ def add_new_metrics(
 
     # Calculate new metrics
     new_metrics = metrics_function(existing_metrics, new_data)
-    # TODO: print the metrics using correct format
 
     # Check if new_metrics have the same columns as existing_metrics
     if existing_metrics.shape[0] > 0:

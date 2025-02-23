@@ -54,9 +54,9 @@ new_data = pl.DataFrame({
 metrics_metadata = DatasetMetadata(
     source="metrics_store",
     name="sample_metrics",
-    version="1.0.0",
+    version="v1",
     process_id="sample_process",
-    partitions=["date"],
+    partitions=["date=20100101"],
     file_name="metrics.parquet",
     file_type="parquet",
     df_type="polars"
