@@ -1,9 +1,9 @@
 import logging
 import os
-from typing import Callable, Optional, Union
+from typing import Callable, Union
 
 import polars as pl
-from acme_dw import DW, DatasetMetadata
+from acme_dw import DW, DatasetMetadata, DatasetPrefix
 
 logger = logging.getLogger(__name__)
 
@@ -15,40 +15,19 @@ def get_dw():
     return DW(bucket_name)
 
 
-def add_new_metrics(
-    metrics_metadata: Optional[DatasetMetadata],
+def _validate_inputs(
+    metrics_metadata: DatasetMetadata,
     new_data: Union[pl.DataFrame, DatasetMetadata],
     metrics_function: Callable,
-):
-    """Calculate new metrics and combine with existing metrics.
-
-    Args:
-        metrics_metadata (Optional[DatasetMetadata]): Metadata for existing metrics dataset.
-            Must use df_type="polars" if provided.
-        new_data (Union[pl.DataFrame, DatasetMetadata]): New data to calculate metrics from.
-            Can be either a Polars DataFrame or DatasetMetadata with df_type="polars".
-        metrics_function (Callable): Function that calculates metrics. Should take two
-            arguments (existing_metrics and new_data) and return a Polars DataFrame with
-            the same schema as existing_metrics.
-    Raises:
-        ValueError: If:
-            - metrics_metadata is provided but not of type DatasetMetadata with df_type="polars"
-            - new_data is not a Polars DataFrame or DatasetMetadata with df_type="polars"
-            - metrics_function is not callable
-            - New metrics have different columns than existing metrics
-    Returns:
-        None: Results are written directly to the data warehouse specified by metrics_metadata
-    """
-    # check types
+) -> None:
+    """Validate input types"""
     if (
         isinstance(metrics_metadata, DatasetMetadata)
         and metrics_metadata.df_type != "polars"
     ):
         raise ValueError('metrics_metadata must use df_type="polars"')
-    elif metrics_metadata is not None and not isinstance(
-        metrics_metadata, DatasetMetadata
-    ):
-        raise ValueError("metrics_metadata must be None or DatasetMetadata type")
+    elif not isinstance(metrics_metadata, DatasetMetadata):
+        raise ValueError("metrics_metadata of DatasetMetadata type")
 
     if isinstance(new_data, DatasetMetadata) and new_data.df_type != "polars":
         raise ValueError('new_data must use df_type="polars"')
@@ -60,28 +39,55 @@ def add_new_metrics(
     if not callable(metrics_function):
         raise ValueError("metrics_function must be a callable function")
 
+
+def add_new_metrics(
+    metrics_metadata: DatasetMetadata,
+    new_data: Union[pl.DataFrame, DatasetMetadata],
+    metrics_function: Callable,
+):
+    """Calculate new metrics and combine with existing metrics.
+
+    Args:
+        metrics_metadata (DatasetMetadata): Metadata for existing metrics dataset.
+            Must use df_type="polars".
+        new_data (Union[pl.DataFrame, DatasetMetadata]): New data to calculate metrics from.
+            Can be either a Polars DataFrame or DatasetMetadata with df_type="polars".
+        metrics_function (Callable): Function that calculates metrics. Should take two
+            arguments (existing_metrics and new_data) and return a Polars DataFrame with
+            the same schema as existing_metrics.
+    Raises:
+        ValueError: If:
+            - metrics_metadata is provided but not of type DatasetMetadata with df_type="polars"
+            - new_data is not a Polars DataFrame or DatasetMetadata with df_type="polars"
+            - metrics_function is not callable
+            - New metrics have different columns than existing metrics
+        FileNotFoundError: If existing metrics are not found
+    Returns:
+        None: Results are written directly to the data warehouse specified by metrics_metadata
+    """
+    _validate_inputs(metrics_metadata, new_data, metrics_function)
+
     # load existing metrics from dw
     dw = get_dw()
-    if isinstance(metrics_metadata, DatasetMetadata):
-        try:
-            existing_metrics = dw.read_df(metrics_metadata)
-        except FileNotFoundError:
-            logger.warning(
-                "Existing metrics not found. Assuming this is the first run."
-            )
-            existing_metrics = pl.DataFrame()
-    else:
-        existing_metrics = pl.DataFrame()
+    try:
+        existing_metrics = dw.read_df(metrics_metadata)
+    except FileNotFoundError:
+        logger.error(
+            "Existing metrics not found! Use `create_metrics` to create metrics from scratch."
+        )
+        raise
 
     # load new_data from dw if new_data is a DatasetMetadata
     if isinstance(new_data, DatasetMetadata):
-        new_data = dw.read_df(new_data)
+        df = dw.read_df(new_data)
+    else:
+        df = new_data
 
     # Calculate new metrics
-    new_metrics = metrics_function(existing_metrics, new_data)
+    new_metrics = metrics_function(existing_metrics, df)
 
-    # Check if new_metrics have the same columns as existing_metrics
-    if existing_metrics.shape[0] > 0:
+    if existing_metrics.shape[0] > 0 and existing_metrics.shape[1] > 0:
+        # Check if new_metrics have the same columns as existing_metrics
         common_cols = set(existing_metrics.columns).intersection(
             set(new_metrics.columns)
         )
@@ -92,8 +98,6 @@ def add_new_metrics(
             )
             raise ValueError(msg)
 
-    # Combine existing and new metrics
-    if existing_metrics.shape[0] > 0:
         combined_metrics = pl.concat([existing_metrics, new_metrics])
     else:
         combined_metrics = new_metrics
@@ -101,3 +105,45 @@ def add_new_metrics(
     # Save updated metrics
     # TODO: this rewrites the entire dataset, which is not efficient
     dw.write_df(combined_metrics, metrics_metadata)
+
+
+def create_metrics(
+    metrics_metadata: DatasetMetadata,
+    new_data: Union[pl.DataFrame, DatasetMetadata, DatasetPrefix],
+    metrics_function: Callable,
+):
+    """Calculate metrics from scratch and write to the data warehouse."""
+    # validate types
+    if (
+        isinstance(metrics_metadata, DatasetMetadata)
+        and metrics_metadata.df_type != "polars"
+    ):
+        raise ValueError('metrics_metadata must use df_type="polars"')
+    elif not isinstance(metrics_metadata, DatasetMetadata):
+        raise ValueError("metrics_metadata of DatasetMetadata type")
+
+    if (
+        isinstance(new_data, (DatasetMetadata, DatasetPrefix))
+        and new_data.df_type != "polars"
+    ):
+        raise ValueError('new_data must use df_type="polars"')
+
+    if not callable(metrics_function):
+        raise ValueError("metrics_function must be a callable function")
+
+    # load new_data from dw if new_data is a DatasetMetadata/DatasetPrefix
+    dw = get_dw()
+    if isinstance(new_data, DatasetMetadata):
+        df = dw.read_df(new_data)
+    elif isinstance(new_data, DatasetPrefix):
+        df = dw.read_dataset(new_data)
+    elif isinstance(new_data, pl.DataFrame):
+        df = new_data
+    else:
+        raise ValueError(
+            "new_data must be a DatasetMetadata, DatasetPrefix, or a pl.DataFrame"
+        )
+
+    new_metrics = metrics_function(pl.DataFrame(), df)
+
+    dw.write_df(new_metrics, metrics_metadata)
