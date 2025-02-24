@@ -36,19 +36,12 @@ If you are using VSCode, set to use this env via `Python: Select Interpreter` co
 
 ```python
 import polars as pl
-from acme_dm.data_metrics import add_new_metrics
+from acme_dm.data_metrics import add_new_metrics, create_metrics
 from acme_dw import DatasetMetadata
 
 # Define a sample metrics function
-def sample_metrics_function(existing_metrics, new_data):
-    # Example: calculate the mean of a column
-    new_metrics = new_data.select(pl.col("value").mean().alias("mean_value"))
-    return new_metrics
-
-# Create sample new data
-new_data = pl.DataFrame({
-    "value": [1, 2, 3, 4, 5]
-})
+def sample_metrics_function(existing_metrics, df):
+    return df.groupby("index").agg(pl.col("value").mean().alias("mean_value"))
 
 # Optionally, provide existing metrics metadata
 metrics_metadata = DatasetMetadata(
@@ -61,6 +54,23 @@ metrics_metadata = DatasetMetadata(
     file_type="parquet",
     df_type="polars"
 )
+
+starting_data = pl.DataFrame({
+    "value": [1, 2, 2, 2, 3],
+    "index": [0, 0, 0, 0, 0]
+})
+
+create_metrics(
+    metrics_metadata=metrics_metadata,
+    new_data=starting_data,
+    metrics_function=sample_metrics_function
+)
+
+# Create sample new data
+new_data = pl.DataFrame({
+    "value": [1, 3, 3, 3, 5],
+    "index": [1, 1, 1, 1, 1]
+})
 
 # Call the add_new_metrics function
 add_new_metrics(
