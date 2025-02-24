@@ -1,3 +1,3 @@
 # Installation
 
-    pip install acme_data_metrics
+    pip install acme_dm

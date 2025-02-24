@@ -107,7 +107,31 @@ def create_metrics(
     new_data: Union[pl.DataFrame, DatasetMetadata, DatasetPrefix],
     metrics_function: Callable,
 ):
-    """Calculate metrics from scratch and write to the data warehouse."""
+    """Calculate metrics from scratch and write to the data warehouse.
+
+    Args:
+        metrics_metadata (DatasetMetadata): Metadata defining where and how to store the
+            calculated metrics. Must have df_type="polars".
+        new_data (Union[pl.DataFrame, DatasetMetadata, DatasetPrefix]): Data to calculate
+            metrics from. Can be:
+            - A polars DataFrame containing the data
+            - DatasetMetadata pointing to data in the warehouse
+            - DatasetPrefix pointing to data in the warehouse
+        metrics_function (Callable): Function that calculates metrics. Should take two
+            arguments:
+            - First argument: Empty polars DataFrame (for consistency with update_metrics)
+            - Second argument: DataFrame containing new data
+            Returns calculated metrics as a polars DataFrame.
+
+    Raises:
+        ValueError: If new_data is not one of the accepted types.
+        AssertionError: If metrics_metadata is not DatasetMetadata with df_type="polars",
+            if new_data metadata doesn't use df_type="polars", or if metrics_function
+            is not callable.
+
+    Returns:
+        None. Results are written to the data warehouse using metrics_metadata.
+    """
     # validate types
     assert (
         isinstance(metrics_metadata, DatasetMetadata)

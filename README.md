@@ -41,9 +41,9 @@ from acme_dw import DatasetMetadata
 
 # Define a sample metrics function
 def sample_metrics_function(existing_metrics, df):
-    return df.groupby("index").agg(pl.col("value").mean().alias("mean_value"))
+    return df.group_by("index").agg(pl.col("value").mean().alias("mean_value"))
 
-# Optionally, provide existing metrics metadata
+# Provide metrics metadata
 metrics_metadata = DatasetMetadata(
     source="metrics_store",
     name="sample_metrics",

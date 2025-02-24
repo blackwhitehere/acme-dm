@@ -3,14 +3,9 @@ theme:
   name: material # readthedocs
 nav:
   - Introduction: index.md
-  - Features: features.md
   - Installation: install.md
-  - User Guides: guides.md
-  - Architecture: architecture.md
-  - Cheat Sheet: cheat_sheet.md
   - API Reference: api.md
   - Release Notes: release_notes.md
-  - Glossary: glossary.md
 extra_css:
   - stylesheets/extra.css
 

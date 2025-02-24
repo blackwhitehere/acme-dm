@@ -1,6 +1,6 @@
-# Documentation for `acme_data_metrics`
+# Documentation for `acme_dm`
 
-::: acme_data_metrics._main
+::: acme_dm.data_metrics
     options:
       show_root_heading: true
       show_source: false
