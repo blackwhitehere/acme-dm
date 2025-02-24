@@ -20,24 +20,19 @@ def _validate_inputs(
     new_data: Union[pl.DataFrame, DatasetMetadata],
     metrics_function: Callable,
 ) -> None:
-    """Validate input types"""
-    if (
+    # Input type validation
+    assert (
         isinstance(metrics_metadata, DatasetMetadata)
-        and metrics_metadata.df_type != "polars"
-    ):
-        raise ValueError('metrics_metadata must use df_type="polars"')
-    elif not isinstance(metrics_metadata, DatasetMetadata):
-        raise ValueError("metrics_metadata of DatasetMetadata type")
+        and metrics_metadata.df_type == "polars"
+    ), 'metrics_metadata must be DatasetMetadata with df_type="polars"'
 
-    if isinstance(new_data, DatasetMetadata) and new_data.df_type != "polars":
-        raise ValueError('new_data must use df_type="polars"')
-    elif not isinstance(new_data, pl.DataFrame) and not isinstance(
-        new_data, DatasetMetadata
-    ):
-        raise ValueError("new_data must be a DatasetMetadata or a pl.DataFrame")
+    assert isinstance(new_data, (pl.DataFrame, DatasetMetadata)), (
+        "new_data must be a DatasetMetadata or a pl.DataFrame"
+    )
+    if isinstance(new_data, DatasetMetadata):
+        assert new_data.df_type == "polars", 'new_data must use df_type="polars"'
 
-    if not callable(metrics_function):
-        raise ValueError("metrics_function must be a callable function")
+    assert callable(metrics_function), "metrics_function must be a callable function"
 
 
 def add_new_metrics(
@@ -114,22 +109,15 @@ def create_metrics(
 ):
     """Calculate metrics from scratch and write to the data warehouse."""
     # validate types
-    if (
+    assert (
         isinstance(metrics_metadata, DatasetMetadata)
-        and metrics_metadata.df_type != "polars"
-    ):
-        raise ValueError('metrics_metadata must use df_type="polars"')
-    elif not isinstance(metrics_metadata, DatasetMetadata):
-        raise ValueError("metrics_metadata of DatasetMetadata type")
+        and metrics_metadata.df_type == "polars"
+    ), 'metrics_metadata must be DatasetMetadata with df_type="polars"'
 
-    if (
-        isinstance(new_data, (DatasetMetadata, DatasetPrefix))
-        and new_data.df_type != "polars"
-    ):
-        raise ValueError('new_data must use df_type="polars"')
+    if isinstance(new_data, (DatasetMetadata, DatasetPrefix)):
+        assert new_data.df_type == "polars", 'new_data must use df_type="polars"'
 
-    if not callable(metrics_function):
-        raise ValueError("metrics_function must be a callable function")
+    assert callable(metrics_function), "metrics_function must be a callable function"
 
     # load new_data from dw if new_data is a DatasetMetadata/DatasetPrefix
     dw = get_dw()
